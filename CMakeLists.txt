@@ -8,7 +8,7 @@ project(ball-drop-spinny-thingy)
 pico_sdk_init()
 
 add_executable(spinny
-        aqueue_test.c
+        timing_tests/aqueue_test.c
         action_queue.c
 )
 

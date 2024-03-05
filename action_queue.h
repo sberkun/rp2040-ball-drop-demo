@@ -43,7 +43,7 @@ typedef struct action_queue {
     size_t size;
     size_t capacity;
     critical_section_t crit_sec;
-    semaphore_t sema;
+    semaphore_t notifs[NUM_CORES];
 } action_queue_t;
 
 
