@@ -3,15 +3,7 @@
 #include "pico/multicore.h"
 #include "hardware/gpio.h"
 
-#include "action_queue.h"
-
 #include "demo_pins.h"
-
-
-// Interrupt handler for the button press
-void gpio_isr(uint gpio, uint32_t event_mask) {
-    printf("event on %d %x\n", gpio, event_mask);
-}
 
 
 
@@ -19,38 +11,37 @@ void gpio_isr(uint gpio, uint32_t event_mask) {
 int main(void){
     stdio_init_all();
 
-    // Initialize the magnet pin as an output
-    gpio_init(MAGNET_PIN);
-    gpio_set_dir(MAGNET_PIN, GPIO_OUT);
+    initialize_demo_pins();
 
-    // Initialize the stepper driver pin as an output
-    gpio_init(MAGNET_PIN);
-    gpio_set_dir(MAGNET_PIN, GPIO_OUT);
+    int sense_1_saved = true;
+    int sense_2_saved = true;
+    int arcade_button_saved = false;
+    int last_event_time = 0;
 
-    // Initialize sense pins as pull-up inputs
-    gpio_init(SENSE_1_PIN);
-    gpio_set_dir(SENSE_1_PIN, GPIO_IN);
-    gpio_pull_up(SENSE_1_PIN);
-    gpio_init(SENSE_2_PIN);
-    gpio_set_dir(SENSE_2_PIN, GPIO_IN);
-    gpio_pull_up(SENSE_2_PIN);
-
-    // Enable edge=triggered interrupts for sense pins
-    gpio_set_irq_enabled(SENSE_1_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-    gpio_set_irq_enabled(SENSE_2_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-    gpio_set_irq_callback(gpio_isr);
-    irq_set_enabled(IO_IRQ_BANK0, true);
-    int l = 0;
     while (true) {
-        // Add a small delay to debounce the button
-        // int sense_1_state = gpio_get(SENSE_1_PIN);
-        // if (sense_1_state != sense_1_stored_state) {
-        //     sense_1_stored_state = sense_1_state;
-        //     printf("sense 1 change: %d\n", sense_1_state);
-        // }
-        // if (l++ % 10000 == 0) {
-        //     printf(".\n");
-        // }
+        uint64_t time = to_us_since_boot(get_absolute_time());
+        int sense_1_new = gpio_get(SENSE_1_PIN);
+        int sense_2_new = gpio_get(SENSE_2_PIN);
+        int arcade_button_new = gpio_get(ARCADE_BUTTON_PIN);
+
+        if (sense_1_new != sense_1_saved) {
+            printf("sense1: %d %lld\n", sense_1_new, (time - last_event_time));
+            last_event_time = time;
+        }
+        if (sense_2_new != sense_2_saved) {
+            printf("sense2: %d %lld\n", sense_2_new, (time - last_event_time));
+            last_event_time = time;
+        }
+        if (arcade_button_new != arcade_button_saved) {
+            printf("ab: %d %lld\n", arcade_button_new, (time - last_event_time));
+            gpio_put(MAGNET_PIN, !arcade_button_new);
+            last_event_time = time;
+        }
+
+        sense_1_saved = sense_1_new;
+        sense_2_saved = sense_2_new;
+        arcade_button_saved = arcade_button_new;
+
         sleep_us(50);
     }
 }

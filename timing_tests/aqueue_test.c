@@ -13,12 +13,14 @@ bool logic = false;
 int count = 0;
 
 void action(uint64_t logical_time) {
-    // gpio_put(LOGIC_PIN, logic);
-    // logic = !logic;
-    if ((count++) % 100 == 0) {
-        uint64_t actual = to_us_since_boot(get_absolute_time());
-        printf("AQUEUE actual: %lld, expected: %lld\n", actual, logical_time);
-    }
+    // gpio_put(1, false);
+    // gpio_put(LOGIC_PIN, false);
+    gpio_put(LOGIC_PIN, logic);
+    logic = !logic;
+    // if ((count++) % 100 == 0) {
+    //     uint64_t actual = to_us_since_boot(get_absolute_time());
+    //     printf("AQUEUE actual: %lld, expected: %lld\n", actual, logical_time);
+    // }
 
     schedule_action(&q, action, logical_time + 10000);
 }
@@ -26,7 +28,7 @@ void action(uint64_t logical_time) {
 
 // Core 0 Main Code
 int main(void){
-    // Initialize the magnet pin as an output
+    // Initialize the pin as an output
     gpio_init(LOGIC_PIN);
     gpio_set_dir(LOGIC_PIN, GPIO_OUT);
 

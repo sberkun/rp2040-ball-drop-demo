@@ -8,6 +8,9 @@ project(ball-drop-spinny-thingy)
 pico_sdk_init()
 
 add_executable(spinny
+        # all_together.c
+        # motor_spin_test.c
+        # magnet_photogate_test.c
         timing_tests/aqueue_test.c
         action_queue.c
 )
