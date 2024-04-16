@@ -67,11 +67,14 @@ int schedule_action(action_queue_t* queue, action_fn_ptr fn, uint64_t us_since_b
     queue->actions[dest_ind].time = us_since_boot;
     queue->size += 1;
 
+    // check if the action that was just pushed is the new most urgent action
+    bool most_urgent_action_changed = dest_ind == queue->start_index;
+
     critical_section_exit(&queue->crit_sec);
 
     // if most urgent action changes,
     // notify all threads to get most urgent action 
-    if (dest_ind == queue->start_index) {
+    if (most_urgent_action_changed) {
         for (int i = 0; i < NUM_CORES; i++) {
             sem_reset(&queue->notifs[i], 1);
         }

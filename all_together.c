@@ -51,7 +51,7 @@ int main(void){
             if (state == 0) {
                 state = 1;
                 gpio_put(MAGNET_PIN, true);
-                target_st = 100;
+                target_st = 1500;
             } else if (state == 1) {
                 state = 2;
                 // calculate drop position
