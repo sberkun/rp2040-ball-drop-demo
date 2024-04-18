@@ -7,6 +7,9 @@
 void event_queue_init(event_queue_t* queue, size_t max_size, size_t num_actors) {
     queue->actors_busy = (bool*) malloc(sizeof(bool) * num_actors);
     queue->num_actors = num_actors;
+    for (int a = 0; a < num_actors; a++) {
+        queue->actors_busy[a] = false;
+    }
 
     queue->events = (event_t*) malloc(sizeof(event_t) * max_size);
     queue->capacity = max_size;
@@ -118,6 +121,7 @@ static inline void remove_front(event_queue_t* queue, size_t ind_to_remove) {
         ind_to_remove = prev;
     }
     queue->start_index = succ(queue->start_index, N);
+    queue->size -= 1;
 }
 
 // given an empty position ind, and an item that goes in >= ind, finds right place for
