@@ -20,8 +20,7 @@
  *            the actual time an event is invoked happens slightly after the
  *            release time; this may be called the "start time" of the event.
  *  - urgency: "more urgent" means an event will be invoked earlier. "less urgent"
- *            means an event will be invoked later. The urgency is a combination
- *            of the event's time and priority.
+ *            means an event will be invoked later.
  * 
  * The event queue is a sorted queue of events. It's a circular queue, with O(N)
  * worst case times. It's optimized for low contention (few events happening
@@ -33,9 +32,9 @@
 typedef void (*action)(uint64_t release_time_us, size_t actor_id, void* arg);
 
 typedef struct event {
-    uint64_t time_prio; // first 56 bits: time. last 8 bits: priority
+    uint64_t time;      // release time
     size_t actor_id;    // which actor this event is for
-    action fn;       // the action to invoke
+    action fn;          // the action to invoke
     void* arg;          // an optional argument to the function
 } event_t;
 
@@ -48,7 +47,7 @@ typedef struct event_queue {
     event_t* events; // a circular array, starting at start_index
     size_t start_index;
     size_t size;
-    size_t; capacity;
+    size_t capacity;
 
     critical_section_t crit_sec;
     semaphore_t notifs[NUM_CORES];
@@ -69,14 +68,13 @@ void event_queue_deinit(event_queue_t* queue);
  * Adds an event to the queue.
  * This function is safe to call concurrently, including from interrupts.
  * \param queue The queue to add the event to
+ * \param release_time_us the earliest time that this event may be invoked
  * \param actor_id Which actor this event is for
  * \param fn the action to call when this event releases
  * \param arg an extra function arguments for the action, or NULL if not needed
- * \param release_time_us the earliest time that this event may be invoked
- * \param priority 0 for most urgent / highest priority, 255 for least urgent / lowest priority
  * \return 0 on success, 1 on error (i.e. not enough capacity).
  */
-int schedule_event(event_queue_t* queue, size_t actor_id, action fn, void* arg, uint64_t release_time_us, uint8_t priority);
+int schedule_event(event_queue_t* queue, uint64_t release_time_us, size_t actor_id, action fn, void* arg);
 
 
 /**

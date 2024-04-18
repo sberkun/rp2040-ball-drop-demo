@@ -8,7 +8,7 @@ void event_queue_init(event_queue_t* queue, size_t max_size, size_t num_actors) 
     queue->actors_busy = (bool*) malloc(sizeof(bool) * num_actors);
     queue->num_actors = num_actors;
 
-    queue->actions = (action_t*) malloc(sizeof(action_t) * max_size);
+    queue->events = (event_t*) malloc(sizeof(event_t) * max_size);
     queue->capacity = max_size;
     queue->size = 0;
     queue->start_index = 0;
@@ -42,134 +42,158 @@ static inline size_t pred(size_t a, size_t N) {
 }
 
 
-/**
- * Adds an event to the queue.
- * This function is safe to call concurrently, including from interrupts.
- * \param queue The queue to add the event to
- * \param actor_id Which actor this event is for
- * \param fn the action to call when this event releases
- * \param arg an extra function arguments for the action, or NULL if not needed
- * \param release_time_us the earliest time that this event may be invoked
- * \param priority 0 for most urgent / highest priority, 255 for least urgent / lowest priority
- * \return 0 on success, 1 on error (i.e. not enough capacity).
- */
-int schedule_event(event_queue_t* queue, size_t actor_id, action fn, void* arg, uint64_t release_time_us, uint8_t priority) {
+
+
+int schedule_event(event_queue_t* queue, uint64_t release_time_us, size_t actor_id, action fn, void* arg) {
     critical_section_enter_blocking(&queue->crit_sec);
 
-    // check if queue has space for another action
-    if (queue->size >= queue->capacity) {
-        critical_section_exit(&queue->crit_sec);
-        return 1;
-    }
+    
+    #ifdef SAFE_QUEUE
+        // check if queue has space for another event
+        if (queue->size >= queue->capacity) {
+            critical_section_exit(&queue->crit_sec);
+            return 1;
+        }
 
-    // check if actor_id is valid
-    if (actor_id >= queue->num_actors) {
-        critical_section_exit(&queue->crit_sec);
-        return 1;
-    }
+        // check if actor_id is valid
+        if (actor_id >= queue->num_actors) {
+            critical_section_exit(&queue->crit_sec);
+            return 1;
+        }
+    #endif
 
-    // TODO combine priority and time
 
-    // queue should be sorted by time. For every action that is
+    // queue should be sorted by time. For every event that is
     // less urgent (has greater time), slide it over 1 to make
-    // room for this new action. O(N).
+    // room for this new event. O(N).
     size_t N = queue->capacity;
     size_t dest_ind = mod1(queue->start_index + queue->size, N);
-    while (dest_ind != queue->start_index && queue->events[pred(dest_ind, N)].time > us_since_boot) {
-        queue->events[dest_ind] = queue->events[pred(dest_ind, N)];
-        dest_ind = pred(dest_ind, N);
+    while (dest_ind != queue->start_index) {
+        size_t prev = pred(dest_ind, N);
+        if (queue->events[prev].time <= release_time_us) {
+            break;
+        }
+        queue->events[dest_ind] = queue->events[prev];
+        dest_ind = prev;
     }
-    queue->events[dest_ind].fn = fn;
-    queue->events[dest_ind].time = us_since_boot;
-    // TODO: all the other things
+    event_t new_event = {
+        .time = release_time_us,
+        .actor_id = actor_id,
+        .fn = fn,
+        .arg = arg
+    };
+    queue->events[dest_ind] = new_event;
     queue->size += 1;
-
-    // main difference from action_queue_v2:
-    // some number of events at the beginning of the queue are blocked
-    // heuristic: check if the event before this one is blocked (its actor is busy)
-    bool most_urgent_action_maybe_changed = (dest_ind == queue->start_index)
-        || queue->actors_busy[queue->events[pred(dest_ind, N)].actor_id];
 
     critical_section_exit(&queue->crit_sec);
 
-    // If most urgent action changes,
-    // notify all threads to get most urgent action.
-    if (most_urgent_action_maybe_changed) {
-        for (int i = 0; i < NUM_CORES; i++) {
-            sem_reset(&queue->notifs[i], 1);
-        }
+    // notify all threads to get most urgent event.
+    for (int i = 0; i < NUM_CORES; i++) {
+        sem_reset(&queue->notifs[i], 1);
     }
     return 0;
 }
 
 
-/**
- * Waits for events to release, then invokes them in an infinite loop. 
- */
-void work(event_queue_t* queue) {
-    action_t next_action;
-    semaphore_t* mailbox = &(queue->notifs[get_core_num()]);
+// returns -1 if not found
+#define NOT_FOUND ((size_t) (-1))
+static inline size_t find_most_urgent(event_queue_t* queue) {
+    size_t N = queue->capacity;
+    size_t end = mod1(queue->start_index + queue->size, N);
+    for (size_t i = queue->start_index; i != end; i = succ(i, N)) {
+        size_t actor_id = queue->events[i].actor_id;
+        if (!queue->actors_busy[actor_id]) {
+            return i;
+        }
+    }
+    return NOT_FOUND;
+}
 
-    // TODO all the logic related to thingys being blocked
-    // namely, once grabbing an action, acquire its actors "busy"
+// removes a event_t from the ind
+static inline void remove_front(event_queue_t* queue, size_t ind_to_remove) {
+    size_t N = queue->capacity;
+    while (ind_to_remove != queue->start_index) {
+        size_t prev = pred(ind_to_remove, N);
+        queue->events[ind_to_remove] = queue->events[prev];
+        ind_to_remove = prev;
+    }
+    queue->start_index = succ(queue->start_index, N);
+}
+
+// given an empty position ind, and an item that goes in >= ind, finds right place for
+// item and puts it there
+static inline void bubble_up(event_queue_t* queue, size_t ind_to_bubble, event_t item_to_bubble) {
+    size_t N = queue->capacity;
+    size_t end = mod1(queue->start_index + queue->size, N);
+    while (ind_to_bubble != end) {
+        size_t next = succ(ind_to_bubble, N);
+        if (item_to_bubble.time <= queue->events[next].time) {
+            queue->events[ind_to_bubble] = item_to_bubble;
+            return;
+        }
+        queue->events[ind_to_bubble] = queue->events[next];
+        ind_to_bubble = next;
+    }
+}
+
+
+void work(event_queue_t* queue) {
+    event_t next_event;
+    semaphore_t* mailbox = &(queue->notifs[get_core_num()]);
+    next_event.actor_id = NOT_FOUND;
 
     while (1) {
         // minimize spurious wakeups
         sem_reset(mailbox, 0);
 
-        // "claim" an action and put it in next_action
+        // "claim" an event and put it in next_event
         while (1) {
             critical_section_enter_blocking(&queue->crit_sec);
-            if (&queue->size == 0) {
+
+            // release the actor whose event we just ran
+            if (next_event.actor_id != NOT_FOUND) {
+                queue->actors_busy[next_event.actor_id] = false;
+            }
+
+            size_t N = queue->capacity;
+            size_t most_urgent = find_most_urgent(queue);
+            if (most_urgent == NOT_FOUND) {
                 // queue is empty; wait for it to get something
                 critical_section_exit(&queue->crit_sec);
                 sem_acquire_blocking(mailbox);
             } else {
-                // pop action off queue
-                next_action = queue->actions[queue->start_index];
-                queue->start_index = mod1(queue->start_index + 1, queue->capacity);
-                queue->size -= 1;
+                next_event = queue->events[most_urgent];
+                remove_front(queue, most_urgent);
+                queue->actors_busy[next_event.actor_id] = true;
                 critical_section_exit(&queue->crit_sec);
                 break;
             }
         }
 
-        // wait for action to expire
-        // in best case, action expires without any notifications
-        bool notified = sem_acquire_block_until(mailbox, from_us_since_boot(next_action.time));
+        // wait for event to expire
+        // in best case, event expires without any notifications
+        bool notified = sem_acquire_block_until(mailbox, from_us_since_boot(next_event.time));
         while (notified) {
             // something was put on the queue; 
             // all threads check if it's more urgent than the one they claimed
             critical_section_enter_blocking(&queue->crit_sec);
-            if (&queue->size > 0 && queue->actions[queue->start_index].time < next_action.time) {
-                // switcheroo.
-                action_t h = next_action;
-                next_action = queue->actions[queue->start_index];
 
-                // bubble up; multiple urgent actions may have been pushed
-                size_t N = queue->capacity;
-                size_t end = mod1(queue->start_index + queue->size, N);
-                size_t curr = queue->start_index;
-                size_t next = succ(curr, N);
-                while (next != end && queue->actions[next].time < h.time) {
-                    queue->actions[curr] = queue->actions[next];
-                    curr = next;
-                    next = succ(next, N);
-                }
-                queue->actions[curr] = h;
+            size_t N = queue->capacity;
+            size_t most_urgent = find_most_urgent(queue);
+            if (most_urgent != NOT_FOUND && queue->events[most_urgent].time < next_event.time) {
+                queue->actors_busy[next_event.actor_id] = false;
+                event_t new_best = queue->events[most_urgent];
+                bubble_up(queue, most_urgent, next_event);
+                next_event = new_best;
+                queue->actors_busy[next_event.actor_id] = true;
             }
+            
             critical_section_exit(&queue->crit_sec);
-            notified = sem_acquire_block_until(mailbox, from_us_since_boot(next_action.time));
+            notified = sem_acquire_block_until(mailbox, from_us_since_boot(next_event.time));
         }
 
         // call the action function
-        next_action.fn(next_action.time);
-
-        // release the actors "busy"
-        // TODO: fold this into the "grab a thing off the queue" logic?
-        critical_section_enter_blocking(&queue->crit_sec);
-        
-        critical_section_exit(&queue->crit_sec);
+        next_event.fn(next_event.time, next_event.actor_id, next_event.arg);
     }
 }
 

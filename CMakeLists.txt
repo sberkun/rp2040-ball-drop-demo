@@ -15,13 +15,14 @@ add_executable(spinny
         # motor_spin_test.c
         # magnet_photogate_test.c
         # timing_tests/aqueue_test.c
-        # action_queue.c
+        timing_tests/actor_test.c
+        actors.c
         # timing_tests/parallel_int_math.c
         # timing_tests/parallel_float_math.c
-        timing_tests/parallel_matmul.c
+        # timing_tests/parallel_matmul.c
         # timing_tests/parallel_shuffle.c
         # timing_tests/parallel_fib.c
-        timing_tests/sep_fib.s
+        # timing_tests/sep_fib.s
 )
 
 target_link_libraries(spinny
