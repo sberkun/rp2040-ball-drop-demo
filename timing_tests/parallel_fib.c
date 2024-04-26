@@ -11,7 +11,7 @@ uint64_t current_time_us() {
 
 int fib(int n);
 
-void __noinline __time_critical_func(bench)() {
+void __noinline bench() {
     uint64_t t = current_time_us();
     int r = fib(25);
     t = current_time_us() - t;
@@ -23,11 +23,12 @@ uint64_t glob_start;
 
 void core1_entry() {
     uint64_t tt = glob_start;
-    while (true) {
-        tt += 1000000;
-        sleep_until(from_us_since_boot(tt));
-        bench();
-    }
+    // while (true) {
+    //     tt += 1000000;
+    //     sleep_until(from_us_since_boot(tt));
+    //     bench();
+    // }
+    while (1) {}
 }
 
 // Core 0 Main Code

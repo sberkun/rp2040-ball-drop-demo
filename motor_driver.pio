@@ -1,0 +1,41 @@
+
+.program mdrive
+.wrap_target
+    pull block
+    out y, 32
+    mov x, y
+lp1:
+    jmp x-- lp1  ; Delay for (x + 1) cycles, x is a 32 bit number
+    set pins, 1      ; Turn LED on
+    mov x, y    [2]
+lp2:
+    jmp x-- lp2  ; Delay for the same number of cycles again
+    set pins, 0      ; Turn LED off
+.wrap                ; Blink forever!
+
+
+% c-sdk {
+
+
+void mdrive_program_init(PIO pio, uint sm, uint offset, uint pin) {
+   pio_gpio_init(pio, pin);
+   pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+   pio_sm_config c = mdrive_program_get_default_config(offset);
+   sm_config_set_set_pins(&c, pin, 1);
+   sm_config_set_clkdiv_int_frac(&c, 125, 0);
+   pio_sm_init(pio, sm, offset, &c);
+   
+}
+
+void mdrive_all_setup(uint pin) {
+    PIO pio = pio0;
+    uint offset = pio_add_program(pio, &mdrive_program);
+    mdrive_program_init(pio, 0, offset, pin);
+    pio_sm_set_enabled(pio, 0, true);
+}
+
+void mdrive_go(uint64_t step) {
+    pio_sm_put(pio0, 0, (uint32_t)(step - 5));
+}
+
+%}

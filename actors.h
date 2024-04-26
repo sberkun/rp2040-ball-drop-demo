@@ -55,9 +55,9 @@ typedef struct event_queue {
 
 
 /**
- * Initialize an event_queue. 
+ * Initialize an event_queue. Returns 0 on success, 1 on failure.
  */
-void event_queue_init(event_queue_t* queue, size_t max_size, size_t num_actors);
+int event_queue_init(event_queue_t* queue, size_t max_size, size_t num_actors);
 
 /**
  * De-Initialize an event_queue.

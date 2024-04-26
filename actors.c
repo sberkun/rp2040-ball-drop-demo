@@ -4,22 +4,26 @@
 /**
  * Initialize an event_queue. 
  */
-void event_queue_init(event_queue_t* queue, size_t max_size, size_t num_actors) {
+int event_queue_init(event_queue_t* queue, size_t max_size, size_t num_actors) {
     queue->actors_busy = (bool*) malloc(sizeof(bool) * num_actors);
     queue->num_actors = num_actors;
-    for (int a = 0; a < num_actors; a++) {
-        queue->actors_busy[a] = false;
-    }
-
     queue->events = (event_t*) malloc(sizeof(event_t) * max_size);
     queue->capacity = max_size;
     queue->size = 0;
     queue->start_index = 0;
 
+    if (queue->actors_busy == NULL || queue->events == NULL) {
+        return 1;
+    }
+
+    for (int a = 0; a < num_actors; a++) {
+        queue->actors_busy[a] = false;
+    }
     critical_section_init(&queue->crit_sec);
     for (int i = 0; i < NUM_CORES; i++) {
         sem_init(&queue->notifs[i], 0, 1);
     }
+    return 0;
 }
 
 /**

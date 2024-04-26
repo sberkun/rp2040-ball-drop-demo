@@ -9,6 +9,7 @@
 
 #define STEPS_PER_HALF_ROT 1600
 #define ACCEL_MUL 1024
+#define ACCEL_MUL_PIO 256
 
 
 // Event timings:
@@ -20,8 +21,8 @@
 // - E5: ball passes through disk
 // the first 4 timings can be measured: the last one is guesstimated based on E3-E4 timing
 
-#define US_AFTER_E4 (4500)
-#define US_AFTER_E3 (US_AFTER_E4 + 3100)
+#define US_AFTER_E4 (3000)
+#define US_AFTER_E3 (US_AFTER_E4 + 3000)
 #define US_AFTER_E2 (US_AFTER_E3 + 19500)
 #define US_AFTER_E1 (US_AFTER_E2 + 3500)
 #define US_AFTER_E0 (US_AFTER_E1 + 263000)

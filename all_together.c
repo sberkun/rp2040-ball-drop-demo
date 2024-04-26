@@ -8,27 +8,42 @@
 
 
 
+#define SLOW_ST 3000
+#define FAST_SLOWER_ST 70
+#define FAST_ST 60
+#define FAST_FASTER_ST 50
+
+
+
+
 // Core 0 Main Code
 int main(void){
     stdio_init_all();
 
     initialize_demo_pins();
 
-    sleep_ms(5000);
+    sleep_ms(1000);
+    for (int a = 0; a < 16; a++) {
+        gpio_put(STEP_PIN, 1);
+        sleep_ms(2);
+        gpio_put(STEP_PIN, 0);
+        sleep_ms(2);
+    }
+    sleep_ms(4000);
 
     
     int arcade_button_saved = 1;
     uint64_t arcade_button_last_pressed = 0;
 
     uint64_t toggle_time = to_us_since_boot(get_absolute_time());
-    uint64_t actual_step_with_mul = 2500 * ACCEL_MUL;
+    uint64_t actual_step_with_mul = SLOW_ST * ACCEL_MUL;
     int motor_saved = 0;
     int motor_position = 0;
 
-    bool sense_1_saved = true;
-    bool sense_2_saved = true;
+    bool sense_1_saved = false;
+    bool sense_2_saved = false;
     
-    uint64_t target_st = 3000;
+    uint64_t target_st = SLOW_ST;
     uint64_t expected_tunnel_time = 0; // state 3 only
     int countdown = 0;                 // state 3 only
     int target_pos_to_drop = 0;        // state 2 only
@@ -51,7 +66,7 @@ int main(void){
             if (state == 0) {
                 state = 1;
                 gpio_put(MAGNET_PIN, true);
-                target_st = 1500;
+                target_st = FAST_ST;
             } else if (state == 1) {
                 state = 2;
                 // calculate drop position
@@ -71,7 +86,7 @@ int main(void){
         }
         if (state == 3 && time > expected_tunnel_time + 500000) {
             state = 0;
-            target_st = 3000;
+            target_st = SLOW_ST;
         }
 
         // speed adjustment during fall
@@ -79,37 +94,36 @@ int main(void){
             // check sensors
             bool sense_1_new = gpio_get(SENSE_1_PIN);
             bool sense_2_new = gpio_get(SENSE_2_PIN);
-            if (!sense_1_new && sense_1_saved) { // event 1
-                printf("event 1: %lld -> %lld\n", expected_tunnel_time, time + US_AFTER_E1);
+            if (sense_1_new && !sense_1_saved) { // event 1
+                printf("event 1: %lld\n", time + US_AFTER_E1 - expected_tunnel_time);
                 expected_tunnel_time = time + US_AFTER_E1;
             }
-            if (sense_1_new && !sense_1_saved) { // event 2
-                printf("event 2: %lld -> %lld\n", expected_tunnel_time, time + US_AFTER_E2);
+            if (!sense_1_new && sense_1_saved) { // event 2
+                printf("event 2: %lld\n", time + US_AFTER_E2 - expected_tunnel_time);
                 expected_tunnel_time = time + US_AFTER_E2;
             }
-            if (!sense_2_new && sense_2_saved) { // event 3
-                printf("event 3: %lld -> %lld\n", expected_tunnel_time, time + US_AFTER_E3);
+            if (sense_2_new && !sense_2_saved) { // event 3
+                printf("event 3: %lld\n", time + US_AFTER_E3 - expected_tunnel_time);
                 expected_tunnel_time = time + US_AFTER_E3;
             }
-            if (sense_2_new && !sense_2_saved) { // event 4
-                printf("event 4: %lld -> %lld\n", expected_tunnel_time, time + US_AFTER_E4);
+            if (!sense_2_new && sense_2_saved) { // event 4
+                printf("event 4: %lld\n", time + US_AFTER_E4 - expected_tunnel_time);
                 expected_tunnel_time = time + US_AFTER_E3;
             }
             sense_1_saved = sense_1_new;
             sense_2_saved = sense_2_new;
 
             // adjust target speed
-            // TODO: uncomment once the sensors actually work
-            // uint64_t actual_st = actual_step_with_mul / ACCEL_MUL;
-            // uint64_t disk_tunnel_time = time + (actual_st * countdown);
-            // if (disk_tunnel_time < expected_tunnel_time) {
-            //     // disk will arrive first: slow down!
-            //     target_st = 60;
-            // } else {
-            //     // ball will arrive first: speed up!
-            //     target_st = 40;
-            // }
-            // countdown -= 1;
+            uint64_t actual_st = actual_step_with_mul / ACCEL_MUL;
+            uint64_t disk_tunnel_time = time + (actual_st * countdown);
+            if (disk_tunnel_time < expected_tunnel_time) {
+                // disk will arrive first: slow down!
+                target_st = FAST_SLOWER_ST;
+            } else {
+                // ball will arrive first: speed up!
+                target_st = FAST_FASTER_ST;
+            }
+            countdown -= 1;
         }
 
 
