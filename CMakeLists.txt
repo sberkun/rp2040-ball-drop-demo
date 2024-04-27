@@ -11,7 +11,8 @@ set(CMAKE_BUILD_TYPE Release)
 pico_sdk_init()
 
 add_executable(spinny
-        all_together.c
+        all_together_actors.c
+        # all_together.c
         # motor_spin_test_with_pio.c
         # magnet_photogate_test.c
         # timing_tests/aqueue_test.c
@@ -19,7 +20,7 @@ add_executable(spinny
         # timing_actors/actor_test_duo.c
         # timing_actors/actor_blink.c
         # timing_actors/actor_race.c
-        # actors.c
+        actors.c
         # timing_tests/parallel_int_math.c
         # timing_tests/parallel_float_math.c
         # timing_tests/parallel_matmul.c

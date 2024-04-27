@@ -108,7 +108,7 @@ int main(void){
             }
             if (!sense_2_new && sense_2_saved) { // event 4
                 printf("event 4: %lld\n", time + US_AFTER_E4 - expected_tunnel_time);
-                expected_tunnel_time = time + US_AFTER_E3;
+                expected_tunnel_time = time + US_AFTER_E4;
             }
             sense_1_saved = sense_1_new;
             sense_2_saved = sense_2_new;
