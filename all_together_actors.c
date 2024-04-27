@@ -35,7 +35,7 @@ void sensors_check(uint64_t logical_time, size_t actor_id, void* arg);
 
 int main(void){
     stdio_init_all();
-    event_queue_init(&q, 10, 1);
+    event_queue_init(&q, 10, NUM_ACTORS);
     schedule_event(&q, to_us_since_boot(get_absolute_time()),
         MOTOR_ACTOR, motor_startup, NULL);
     work(&q);

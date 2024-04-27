@@ -1,0 +1,287 @@
+target C {
+    platform: "Rp2040",
+    single-threaded: false,
+    workers: 2
+}
+
+preamble {=
+    #include "pico/stdlib.h"
+    #include "hardware/gpio.h"
+
+    // Speeds: change these to control how fast the disk spins
+    // Example configurations:
+    //  - (3000, 1000, 1000, 1000)
+    //  - (3000, 220, 200, 180)
+    //  - (3000, 70, 60, 50)
+    #define SLOW_ST 3000
+    #define FAST_SLOWER_ST 220
+    #define FAST_ST 200
+    #define FAST_FASTER_ST 180
+
+
+    // hardware configuration
+    #define MAGNET_PIN 22
+    #define SENSE_1_PIN 27
+    #define SENSE_2_PIN 26
+    #define STEP_PIN 16
+    #define ARCADE_BUTTON_PIN 17
+
+    #define STEPS_PER_HALF_ROT 1600
+    #define ACCEL_MUL 1024
+    #define ACCEL_MUL_PIO 256
+
+
+    // Event timings:
+    // - E0: ball is released from magnet
+    // - E1: top of sense1
+    // - E2: bottom of sense1
+    // - E3: top of sense2
+    // - E4: bottom of sense2
+    // - E5: ball passes through disk
+    // the first 4 timings can be measured: the last one is guesstimated based on E3-E4 timing
+
+    #define US_AFTER_E4 (3000)
+    #define US_AFTER_E3 (US_AFTER_E4 + 3000)
+    #define US_AFTER_E2 (US_AFTER_E3 + 19500)
+    #define US_AFTER_E1 (US_AFTER_E2 + 3500)
+    #define US_AFTER_E0 (US_AFTER_E1 + 263000)
+
+    // what position the disk should be in when the ball is dropped
+    #define DROP_TARGET_POS ((STEPS_PER_HALF_ROT - ((US_AFTER_E0 / FAST_ST) % STEPS_PER_HALF_ROT)) % STEPS_PER_HALF_ROT)
+=}
+
+// TODO set initial values
+
+reactor Motor {
+    logical action loop
+    input target_st_in: int
+    input countdown_in: int
+    input tunnel_time_in: uint64_t
+    output motor_position_out: int
+
+    state actual_step_with_mul: int = 3000000
+    state target_st: int = 3000
+    state countdown: int = 0
+    state expected_tunnel_time: uint64_t = 0
+    state motor_toggle: int = 0
+    state motor_position: int = 0
+
+    reaction(startup) -> loop {=
+        // Initialize the magnet pin as an output
+        gpio_init(MAGNET_PIN);
+        gpio_set_dir(MAGNET_PIN, GPIO_OUT);
+
+        // Initialize the stepper driver pin as an output
+        gpio_init(STEP_PIN);
+        gpio_set_dir(STEP_PIN, GPIO_OUT);
+
+        // Initialize sense pins as pull-up inputs
+        gpio_init(SENSE_1_PIN);
+        gpio_set_dir(SENSE_1_PIN, GPIO_IN);
+        gpio_pull_up(SENSE_1_PIN);
+        gpio_init(SENSE_2_PIN);
+        gpio_set_dir(SENSE_2_PIN, GPIO_IN);
+        gpio_pull_up(SENSE_2_PIN);
+
+        // Initialize button pin as pull-up input
+        gpio_init(ARCADE_BUTTON_PIN);
+        gpio_set_dir(ARCADE_BUTTON_PIN, GPIO_IN);
+        gpio_pull_up(ARCADE_BUTTON_PIN);
+
+        // adjust motor into correct position
+        // (I have a marking on the disk that I manually line up, 
+        // which is around ~32 microsteps offset from the drop tube)
+        for (int a = 0; a < 16; a++) {
+            gpio_put(STEP_PIN, 1);
+            sleep_ms(2); // hacky, but it's program startup, so its fine
+            gpio_put(STEP_PIN, 0);
+            sleep_ms(2); // hacky
+        }
+
+        // wait 4 seconds, then start spinning the disk
+        lf_schedule(loop, SEC(4));    
+    =}
+
+    reaction(loop) -> loop, motor_position_out {=
+        uint64_t logical_time = lf_time_logical() / 1000;
+
+        gpio_put(STEP_PIN, self->motor_toggle);
+        self->motor_toggle = !(self->motor_toggle);
+        self->motor_position += 1;
+        if (self->motor_position == STEPS_PER_HALF_ROT) {
+            self->motor_position = 0;
+        }
+        
+        // adjust target_st based on countdown (if countdown is active)
+        if (self->countdown > 0) {
+            uint64_t actual_st = self->actual_step_with_mul / ACCEL_MUL;
+            uint64_t disk_tunnel_time = logical_time + (actual_st * self->countdown);
+            if (disk_tunnel_time < self->expected_tunnel_time) {
+                // disk will arrive first: slow down!
+                self->target_st = FAST_SLOWER_ST;
+            } else {
+                // ball will arrive first: speed up!
+                self->target_st = FAST_FASTER_ST;
+            }
+            self->countdown -= 1;
+        }
+
+        // adjust actual_step_with_mul based on target_st
+        uint64_t actual_st = self->actual_step_with_mul / ACCEL_MUL;
+        if (actual_st > self->target_st) {
+            self->actual_step_with_mul -= actual_st;
+        }
+        if (actual_st < self->target_st) {
+            self->actual_step_with_mul += actual_st;
+        }
+
+
+        lf_set(motor_position_out, self->motor_position);
+        lf_schedule(loop, USEC((self->actual_step_with_mul / ACCEL_MUL)));
+    =}
+
+    reaction(target_st_in) {=
+        self->target_st = target_st_in->value;
+    =}
+    reaction(countdown_in) {=
+        self->countdown = countdown_in->value;
+    =}
+    reaction(tunnel_time_in) {=
+        printf("adjust: %lld\n", tunnel_time_in->value - self->expected_tunnel_time);
+        printf("lag: %lld\n", lf_time_physical() - lf_time_logical());
+        self->expected_tunnel_time = tunnel_time_in->value;
+    =}
+}
+
+
+// TODO set initial values
+
+reactor Central {
+    input motor_position: int
+    input button_press: bool
+    input sensors_tunnel_time: uint64_t
+    output check_button: bool
+    output check_sensors: bool
+    output motor_target_st: int
+    output motor_countdown: int
+    output motor_tunnel_time: uint64_t
+
+    state state_machine: int = 0
+    state reset_time: uint64_t = 0
+
+    reaction(motor_position) -> check_button, check_sensors, motor_target_st, motor_tunnel_time, motor_countdown {=
+        uint64_t logical_time = lf_time_logical() / 1000;
+        if (self->state_machine < 2) {
+            lf_set(check_button, true);
+        } else if (self->state_machine == 2) {
+            if (motor_position->value == DROP_TARGET_POS) {
+                self->state_machine = 3;
+                self->reset_time = logical_time + US_AFTER_E0 + 500000;
+                gpio_put(MAGNET_PIN, false);
+                lf_set(motor_tunnel_time, logical_time + US_AFTER_E0);
+                lf_set(motor_countdown, US_AFTER_E0 / FAST_ST);
+            }
+        } else { // state 3
+            lf_set(check_sensors, true);
+            if (logical_time > self->reset_time) {
+                self->state_machine = 0;
+                printf("slowing down\n");
+                lf_set(motor_target_st, SLOW_ST);
+            }
+        }
+    =}
+
+    reaction(button_press) -> motor_target_st {=
+        if (self->state_machine == 0) {
+            self->state_machine = 1;
+            gpio_put(MAGNET_PIN, true);
+            lf_set(motor_target_st, FAST_ST);
+        } else if (self->state_machine == 1) {
+            self->state_machine = 2;
+            printf("dropping\n");
+        }
+    =}
+
+    reaction(sensors_tunnel_time) -> motor_tunnel_time {=
+        lf_set(motor_tunnel_time, sensors_tunnel_time->value);
+    =}
+}
+
+
+
+reactor Button {
+    input check_button: bool
+    output button_press: bool
+
+    state arcade_button_last_pressed: uint64_t = 0
+    state arcade_button_saved: bool = true
+
+    reaction(check_button) -> button_press {=
+        // check button - 1s debounce
+        uint64_t logical_time = lf_time_logical() / 1000;
+        int arcade_button_new = gpio_get(ARCADE_BUTTON_PIN);
+        if (!arcade_button_new && self->arcade_button_saved && logical_time - self->arcade_button_last_pressed > 1000000) {
+            self->arcade_button_last_pressed = logical_time;
+            printf("button!\n");
+            lf_set(button_press, true);
+        }
+        self->arcade_button_saved = arcade_button_new;
+    =}
+}
+
+
+reactor Sensors {
+    input check_sensors: bool
+    output motor_tunnel_time: uint64_t
+
+    state sense_1_saved: bool = false
+    state sense_2_saved: bool = false
+
+    reaction(check_sensors) -> motor_tunnel_time {=
+        uint64_t time = lf_time_physical() / 1000;
+        uint64_t new_expected_tunnel_time = 0;
+    
+        bool sense_1_new = gpio_get(SENSE_1_PIN);
+        bool sense_2_new = gpio_get(SENSE_2_PIN);
+        if (sense_1_new && !self->sense_1_saved) { // event 1
+            new_expected_tunnel_time = time + US_AFTER_E1;
+            printf("event 1\n");
+        }
+        if (!sense_1_new && self->sense_1_saved) { // event 2
+            new_expected_tunnel_time = time + US_AFTER_E2;
+            printf("event 2\n");
+        }
+        if (sense_2_new && !self->sense_2_saved) { // event 3
+            new_expected_tunnel_time = time + US_AFTER_E3;
+            printf("event 3\n");
+        }
+        if (!sense_2_new && self->sense_2_saved) { // event 4
+            new_expected_tunnel_time = time + US_AFTER_E4;
+            printf("event 4\n");
+        }
+        self->sense_1_saved = sense_1_new;
+        self->sense_2_saved = sense_2_new;
+
+        if (new_expected_tunnel_time != 0) {
+            lf_set(motor_tunnel_time, new_expected_tunnel_time);
+        }
+    =}
+}
+
+
+
+main reactor {
+  m = new Motor()
+  c = new Central()
+  b = new Button()
+  s = new Sensors()
+
+  m.motor_position_out -> c.motor_position
+  c.check_button -> b.check_button
+  c.check_sensors -> s.check_sensors
+  c.motor_target_st -> m.target_st_in
+  c.motor_countdown -> m.countdown_in
+  c.motor_tunnel_time -> m.tunnel_time_in
+  b.button_press -> c.button_press
+  s.motor_tunnel_time -> c.sensors_tunnel_time
+}
