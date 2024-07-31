@@ -48,8 +48,11 @@ int main(void){
 
     printf("starting!! %d %d %d\n", sizeof(event_queue_t), sizeof(event_t), sizeof(bool));
 
+    void* cheese = malloc(1024);
+    printf("bare-metal printer start: %p\n", cheese);
+
     uint64_t tt = to_us_since_boot(get_absolute_time());
-    int init_success = event_queue_init(&q, 10068, 10068);
+    int init_success = event_queue_init(&q, 100, 100);
     printf("did init: %d\n", init_success);
 
     schedule_event(&q, tt, 0, my_action, NULL);

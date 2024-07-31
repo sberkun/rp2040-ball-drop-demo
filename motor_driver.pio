@@ -6,12 +6,12 @@
     mov x, y
 lp1:
     jmp x-- lp1  ; Delay for (x + 1) cycles, x is a 32 bit number
-    set pins, 1      ; Turn LED on
+    set pins, 1      ; Turn stepper pin on
     mov x, y    [2]
 lp2:
     jmp x-- lp2  ; Delay for the same number of cycles again
-    set pins, 0      ; Turn LED off
-.wrap                ; Blink forever!
+    set pins, 0      ; Turn stepper pin off
+.wrap                ; run forever
 
 
 % c-sdk {
