@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
 
-include(set_env.cmake)
 include(pico_sdk_import.cmake)
 
 project(ball-drop-spinny-thingy)
