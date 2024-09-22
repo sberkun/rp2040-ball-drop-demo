@@ -15,9 +15,10 @@ add_executable(spinny
         # all_together.c
         # motor_spin_test_with_pio.c
         # magnet_photogate_test.c
+        motor_spin_test.c
         # timing_tests/aqueue_test.c
         # timing_actors/actor_test.c
-        timing_actors/actor_test_duo.c
+        # timing_actors/actor_test_duo.c
         # timing_actors/actor_blink.c
         # timing_actors/actor_race.c
         # timing_actors/actor_parallel_fib.c
@@ -29,7 +30,7 @@ add_executable(spinny
         # timing_tests/parallel_matmul.c
         # timing_tests/parallel_shuffle.c
         # timing_tests/parallel_fib.c
-        timing_tests/sep_fib.s
+        # timing_tests/sep_fib.s
 )
 
 # pico_generate_pio_header(spinny ${CMAKE_CURRENT_LIST_DIR}/motor_driver.pio)

@@ -1,3 +1,10 @@
+# Samuel Berkun's master's thesis work
+
+This repo contains some stuff I worked on during my master's thesis. Namely:
+ - a C library for timing-aware actors
+ - several timing tests
+ - code for a "tunneling ball" demonstration
+
 # Ball Drop Demonstration
 
 This is code to drop a ball through a spinning disk.
