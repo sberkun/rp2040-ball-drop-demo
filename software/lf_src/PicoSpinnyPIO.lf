@@ -93,16 +93,6 @@ reactor Motor {
         gpio_set_dir(ARCADE_BUTTON_PIN, GPIO_IN);
         gpio_pull_up(ARCADE_BUTTON_PIN);
 
-        // adjust motor into correct position
-        // (I have a marking on the disk that I manually line up, 
-        // which is around ~32 microsteps offset from the drop tube)
-        for (int a = 0; a < 16; a++) {
-            gpio_put(STEP_PIN, 1);
-            sleep_ms(2); // hacky, but it's program startup, so its fine
-            gpio_put(STEP_PIN, 0);
-            sleep_ms(2); // hacky
-        }
-
         mdrive_all_setup(STEP_PIN);
 
         // wait 4 seconds, then start spinning the disk
