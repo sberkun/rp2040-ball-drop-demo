@@ -3,7 +3,7 @@
 #include "pico/multicore.h"
 #include "hardware/gpio.h"
 
-#include "actors.h"
+#include "../lib/actors.h"
 #include "demo_pins.h"
 
 
@@ -73,12 +73,6 @@ void motor_set_target_st(uint64_t logical_time, size_t actor_id, void* arg) {
 
 void motor_startup(uint64_t logical_time, size_t actor_id, void* arg) {
     initialize_demo_pins();
-    for (int a = 0; a < 16; a++) {
-        gpio_put(STEP_PIN, 1);
-        sleep_ms(2);
-        gpio_put(STEP_PIN, 0);
-        sleep_ms(2);
-    }
     schedule_event(&q, logical_time + 4000000, MOTOR_ACTOR, motor_loop, NULL);
 }
 

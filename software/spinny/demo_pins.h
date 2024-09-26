@@ -21,11 +21,11 @@
 // - E5: ball passes through disk
 // the first 4 timings can be measured: the last one is guesstimated based on E3-E4 timing
 
-#define US_AFTER_E4 (1000)
+#define US_AFTER_E4 (1600)
 #define US_AFTER_E3 (US_AFTER_E4 + 3200)
 #define US_AFTER_E2 (US_AFTER_E3 + 17000)
 #define US_AFTER_E1 (US_AFTER_E2 + 3500)
-#define US_AFTER_E0 (US_AFTER_E1 + 267000)
+#define US_AFTER_E0 (US_AFTER_E1 + 261000)
 
 
 
