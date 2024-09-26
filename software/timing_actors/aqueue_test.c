@@ -3,7 +3,7 @@
 #include "pico/multicore.h"
 #include "hardware/adc.h"
 
-#include "../action_queue.h"
+#include "../lib/action_queue.h"
 
 
 #define LOGIC_PIN 1

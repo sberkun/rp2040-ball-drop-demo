@@ -3,7 +3,7 @@
 #include "pico/multicore.h"
 #include "hardware/adc.h"
 
-#include "../actors.h"
+#include "../lib/actors.h"
 
 
 uint64_t current_time_us() {

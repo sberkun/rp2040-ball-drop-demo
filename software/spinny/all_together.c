@@ -21,14 +21,6 @@ int main(void){
     stdio_init_all();
 
     initialize_demo_pins();
-
-    sleep_ms(1000);
-    for (int a = 0; a < 16; a++) {
-        gpio_put(STEP_PIN, 1);
-        sleep_ms(2);
-        gpio_put(STEP_PIN, 0);
-        sleep_ms(2);
-    }
     sleep_ms(4000);
 
     

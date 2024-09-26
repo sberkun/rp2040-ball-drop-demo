@@ -3,9 +3,9 @@
 #include "pico/multicore.h"
 #include "hardware/gpio.h"
 
-#include "action_queue.h"
+#include "../lib/action_queue.h"
 
-#include "demo_pins.h"
+#include "../spinny/demo_pins.h"
 
 
 semaphore_t sem;

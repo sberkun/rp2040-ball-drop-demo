@@ -3,7 +3,7 @@
 #include "pico/multicore.h"
 #include "hardware/adc.h"
 
-#include "../actors.h"
+#include "../lib/actors.h"
 
 
 #define LOGIC_PIN 1

@@ -19,7 +19,7 @@ add_executable(spinny
 )
 
 # pico_generate_pio_header(spinny ${CMAKE_CURRENT_LIST_DIR}/motor_driver.pio)
-# pico_set_linker_script(spinny ${CMAKE_CURRENT_LIST_DIR}/../../pico-sdk/src/rp2_common/pico_standard_link/memmap_blocked_ram.ld)
+# pico_set_linker_script(spinny ${IDK}/pico-sdk/src/rp2_common/pico_standard_link/memmap_blocked_ram.ld)
 
 
 target_link_libraries(spinny
